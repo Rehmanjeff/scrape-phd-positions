@@ -2,6 +2,9 @@ from pathlib import Path
 import re
 import scrapy
 
+import dbModule
+
+
 class PhdSpider(scrapy.Spider):
     name = "phd"
 
@@ -16,36 +19,27 @@ class PhdSpider(scrapy.Spider):
         data_response = {}
 
         for phd in response.css(".position-details"):
-           
+
             heading = phd.xpath('string(//h1)').extract_first()
-            heading = "".join([re.sub("  +"," ",x.strip(" ")) for x in "".join(heading).split("\n")])
+            heading = "".join([re.sub("  +", " ", x.strip(" ")) for x in "".join(heading).split("\n")])
 
             university_filter_url = phd.css("h2 a:first-child::attr(href)").get()
             university = phd.css("h2 a:first-child::text").get()
             country = phd.css("h2 a:last-child::text").get()
 
-            summary = phd.css(".summary div:first-child")
-            summary_text = summary.css("span:first-child::text").get()
-            last_update = summary.css("span:nth-child(2)::text").get() if "Updated: " == summary_text else None
-
-            deadline = None
             my_summary = {}
             for detail in phd.css(".summary div"):
                 text = detail.css("span:first-child::text").get()
                 if text:
-                    text = text.replace(" ","")
-                    text = text.replace(":","")
-                else:
-                    print("ELSE START")
-                    print(detail)
-                    print("ELSE END")
+                    text = text.replace(" ", "")
+                    text = text.replace(":", "")
 
                 if text == "Deadline":
                     value = detail.css('div::text')[1].get()
                     if value:
-                        value = "".join([re.sub("  +"," ",x.strip(" ")) for x in "".join(value).split("\n")])
+                        value = "".join([re.sub("  +", " ", x.strip(" ")) for x in "".join(value).split("\n")])
                 else:
-                    value = detail.css("span:nth-child(2)::text").get() 
+                    value = detail.css("span:nth-child(2)::text").get()
 
                 my_summary.update({
                     text: value
@@ -54,30 +48,23 @@ class PhdSpider(scrapy.Spider):
             url = response.css("a.btn.btn-primary::attr(href)").get()
 
             if heading is not None:
-                
                 yield {
                     "apply_url": url,
-                    "position" : heading,
+                    "position": heading,
                     "university": university,
                     "university_filter": university_filter_url,
                     "country": country,
                     "summary": my_summary
                 }
 
-
-
         for phd in response.css("h4 a"):
             if phd.css("a::text").get() is not None and phd.css("a::attr(href)").get() is not None:
                 deep_link = phd.css("a::attr(href)").get()
-                deep_link =  "https://scholarshipdb.net"+deep_link
-                data_response = {
-                    "text": phd.css("a::text").get(),
-                    "url": deep_link
-                }
-                
+                deep_link = "https://scholarshipdb.net" + deep_link
+
                 yield scrapy.Request(url=deep_link, callback=self.parse)
 
-        # Scrape througth pages
+        # Scrape through pages
         next_page = response.css("li.next a::attr(href)").get()
         if next_page is not None:
             next_page = response.urljoin(next_page)
